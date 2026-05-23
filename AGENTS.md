@@ -3,7 +3,8 @@
 ## Agent-Specific Instructions
 
 - Treat this as a host-run Elixir library, not a Phoenix app or service.
-- Do not edit `lib/generated/*.ex` directly; update the generator or `priv/openapi/spec3.sdk.json`, then run `make generate`.
+- Use `mise exec -- ...` by default for project commands so Elixir/Erlang versions from `mise.toml` are active.
+- Do not edit `lib/generated/*.ex` directly; update the generator or `priv/openapi/spec3.sdk.json`, then run `mise exec -- make generate`.
 - Do not commit real Stripe keys. Use test values and env vars such as `STRIPE_SECRET_KEY`, `STRIPE_API_BASE_URL`, and `STRIPE_API_UPLOAD_URL`.
 - Avoid changing synced common-config files (`.formatter.exs`, `.credo.exs`, `.github/workflows/*`) unless the sync source is intentionally being updated.
 
@@ -13,15 +14,15 @@ Hand-written source lives in `lib/stripe/`, with entry point `lib/stripe.ex`. Op
 
 ## Build, Test, and Development Commands
 
-- `mix deps.get` fetches Elixir dependencies from `mix.lock`.
-- `mix compile --warnings-as-errors` matches CI compile strictness.
-- `mix test` runs ExUnit; by default `test/test_helper.exs` starts `stripe-mock`.
-- `SKIP_STRIPE_MOCK_RUN=1 mix test` uses an already-running `stripe-mock`.
-- `mix format` formats source; `mix format --check-formatted` matches CI.
-- `mix credo --strict` runs the configured Credo checks.
-- `mix dialyzer --format github` runs Dialyzer.
-- `make generate` runs `mix stripe.generate` and formats generated output.
-- `make download-openapi-current` downloads the OpenAPI spec from `.latest-tag-stripe-openapi-sdk`.
+- `mise exec -- mix deps.get` fetches Elixir dependencies from `mix.lock`.
+- `mise exec -- mix compile --warnings-as-errors` matches CI compile strictness.
+- `mise exec -- mix test` runs ExUnit; by default `test/test_helper.exs` starts `stripe-mock`.
+- `SKIP_STRIPE_MOCK_RUN=1 mise exec -- mix test` uses an already-running `stripe-mock`.
+- `mise exec -- mix format` formats source; `mise exec -- mix format --check-formatted` matches CI.
+- `mise exec -- mix credo --strict` runs the configured Credo checks.
+- `mise exec -- mix dialyzer --format github` runs Dialyzer.
+- `mise exec -- make generate` runs `mix stripe.generate` and formats generated output.
+- `mise exec -- make download-openapi-current` downloads the OpenAPI spec from `.latest-tag-stripe-openapi-sdk`.
 
 ## Coding Style & Naming Conventions
 
@@ -29,7 +30,7 @@ Use standard Elixir formatting with `.formatter.exs`: 120-column line length, `p
 
 ## Testing Guidelines
 
-Tests use ExUnit with `seed: 0` and `disabled: true` excluded. Add tests near the changed domain, for example `test/stripe/connect/account_test.exs` for `Stripe.Account` behavior. Integration tests depend on `stripe-mock` on ports `12111` and `12112`; install it or run `docker run --rm -it -p 12111-12112:12111-12112 stripe/stripe-mock:latest` and set `SKIP_STRIPE_MOCK_RUN=1`. Run focused tests with `mix test path/to/file_test.exs`, then the relevant suite.
+Tests use ExUnit with `seed: 0` and `disabled: true` excluded. Add tests near the changed domain, for example `test/stripe/connect/account_test.exs` for `Stripe.Account` behavior. Integration tests depend on `stripe-mock` on ports `12111` and `12112`; install it or run `docker run --rm -it -p 12111-12112:12111-12112 stripe/stripe-mock:latest` and set `SKIP_STRIPE_MOCK_RUN=1`. Run focused tests with `mise exec -- mix test path/to/file_test.exs`, then the relevant suite.
 
 ## Commit & Pull Request Guidelines
 
