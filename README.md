@@ -71,14 +71,6 @@ config :stripity_stripe, api_key: {MyApp.Secrets, :stripe_secret, []}
 config :stripity_stripe, api_key: fn -> System.get_env("STRIPE_SECRET") end
 ```
 
-By default, the library uses Elixir's built-in `JSON` module when it is available,
-falling back to Jason on older Elixir versions. You can configure a different
-JSON library, such as Poison, like so:
-
-```elixir
-config :stripity_stripe, json_library: Poison
-```
-
 ### Timeout
 
 To set timeouts, pass opts for the HTTP client. The default one is Req.

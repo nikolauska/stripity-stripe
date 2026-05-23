@@ -63,6 +63,10 @@ defmodule Stripe.StripeCase do
 
   defp assert_stripe_request_body(nil, _), do: nil
 
+  defp assert_stripe_request_body(expected_body, {:form, body}) do
+    assert Enum.sort(body) == expected_body |> Stripe.URI.form_params() |> Enum.sort()
+  end
+
   defp assert_stripe_request_body(expected_body, body) do
     assert body == Stripe.URI.encode_query(expected_body)
   end

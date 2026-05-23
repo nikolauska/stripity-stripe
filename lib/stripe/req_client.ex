@@ -2,7 +2,7 @@ defmodule Stripe.ReqClient do
   @moduledoc false
 
   @spec request(Stripe.API.method(), String.t(), [{String.t(), String.t()}], Stripe.API.body(), Keyword.t()) ::
-          {:ok, integer, [{String.t(), String.t()}], binary} | {:error, term}
+          {:ok, integer, [{String.t(), String.t()}], term} | {:error, term}
   def request(method, url, headers, body, opts) do
     opts = Keyword.delete(opts, :telemetry_metadata)
 
@@ -11,7 +11,6 @@ defmodule Stripe.ReqClient do
       method: method,
       url: url,
       headers: headers,
-      raw: true,
       retry: false,
       redirect: false
     )
@@ -26,6 +25,10 @@ defmodule Stripe.ReqClient do
     |> Keyword.put(:form_multipart, Enum.map(parts, &normalize_multipart_part/1))
   end
 
+  defp put_body(opts, {:form, params}) do
+    Keyword.put(opts, :form, params)
+  end
+
   defp put_body(opts, body), do: Keyword.put(opts, :body, body)
 
   defp drop_content_type(headers) do
@@ -38,9 +41,8 @@ defmodule Stripe.ReqClient do
 
   defp normalize_multipart_part(part), do: part
 
-  defp normalize_response({:ok, %Req.Response{status: status, headers: headers, body: body}}) do
-    {:ok, status, normalize_headers(headers), IO.iodata_to_binary(body)}
-  end
+  defp normalize_response({:ok, %Req.Response{status: status, headers: headers, body: body}}),
+    do: {:ok, status, normalize_headers(headers), body}
 
   defp normalize_response({:error, %Req.TransportError{reason: reason}}), do: {:error, reason}
   defp normalize_response({:error, exception}), do: {:error, exception}

@@ -33,11 +33,12 @@ defmodule Stripe.URI do
   @spec encode_query(map | keyword) :: String.t()
   def encode_query(params) do
     params
-    |> query_params()
+    |> form_params()
     |> URI.encode_query()
   end
 
-  defp query_params(params) do
+  @spec form_params(map | keyword) :: [{String.t(), String.t()}]
+  def form_params(params) do
     Enum.flat_map(params, fn {key, value} ->
       query_params(to_string(key), value)
     end)

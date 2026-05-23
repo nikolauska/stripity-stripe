@@ -26,7 +26,7 @@ defmodule Helper do
 
   def load_fixture(filename) do
     contents = File.read!(@fixture_path <> filename)
-    Stripe.API.json_library().decode!(contents)
+    JSON.decode!(contents)
   end
 
   def wait_until_stripe_mock_launch do

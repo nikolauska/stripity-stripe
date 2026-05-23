@@ -19,29 +19,9 @@ defmodule Stripe.API do
 
   @type method :: :get | :post | :put | :delete | :patch
   @type headers :: %{String.t() => String.t()} | %{}
-  @type body :: iodata() | {:multipart, list()}
-  @typep http_success :: {:ok, integer, [{String.t(), String.t()}], String.t()}
+  @type body :: iodata() | {:form, list()} | {:multipart, list()}
+  @typep http_success :: {:ok, integer, [{String.t(), String.t()}], term}
   @typep http_failure :: {:error, term}
-  @doc """
-  In config.exs your implicit or explicit configuration is:
-    config :stripity_stripe,
-      json_library: Poison # defaults to Elixir's JSON module when available
-  """
-  @spec json_library() :: module
-  def json_library do
-    case Application.fetch_env(:stripity_stripe, :json_library) do
-      {:ok, _} -> Config.resolve(:json_library)
-      :error -> default_json_library()
-    end
-  end
-
-  defp default_json_library do
-    cond do
-      Code.ensure_loaded?(JSON) -> JSON
-      Code.ensure_loaded?(Jason) -> Jason
-      true -> raise "stripity_stripe requires Elixir's JSON module or a configured :json_library"
-    end
-  end
 
   def supervisor_children do
     if use_pool?() do
@@ -132,19 +112,8 @@ defmodule Stripe.API do
     Base.hex_encode32(binary, case: :lower, padding: false)
   end
 
-  @spec add_common_headers(headers) :: headers
-  defp add_common_headers(existing_headers) do
-    Map.merge(existing_headers, %{
-      "Accept" => "application/json; charset=utf8",
-      "Accept-Encoding" => "gzip",
-      "Connection" => "keep-alive"
-    })
-  end
-
   @spec add_default_headers(headers) :: headers
   defp add_default_headers(existing_headers) do
-    existing_headers = add_common_headers(existing_headers)
-
     case Map.has_key?(existing_headers, "Content-Type") do
       false -> Map.put(existing_headers, "Content-Type", "application/x-www-form-urlencoded")
       true -> existing_headers
@@ -293,9 +262,9 @@ defmodule Stripe.API do
     req_body =
       body
       |> Stripe.Util.map_keys_to_atoms()
-      |> Stripe.URI.encode_query()
+      |> Stripe.URI.form_params()
 
-    perform_request(req_url, method, req_body, headers, opts)
+    perform_request(req_url, method, {:form, req_body}, headers, opts)
   end
 
   @doc """
@@ -324,9 +293,9 @@ defmodule Stripe.API do
     req_body =
       body
       |> Stripe.Util.map_keys_to_atoms()
-      |> Stripe.URI.encode_query()
+      |> Stripe.URI.form_params()
 
-    perform_request(req_url, method, req_body, headers, opts)
+    perform_request(req_url, method, {:form, req_body}, headers, opts)
   end
 
   @doc """
@@ -337,7 +306,7 @@ defmodule Stripe.API do
   def oauth_request(method, endpoint, body, api_key \\ nil, opts \\ []) do
     base_url = "https://connect.stripe.com/oauth/"
     req_url = base_url <> endpoint
-    req_body = Stripe.URI.encode_query(body)
+    req_body = {:form, Stripe.URI.form_params(body)}
     {api_version, _opts} = Keyword.pop(opts, :api_version)
 
     req_headers =
@@ -485,13 +454,8 @@ defmodule Stripe.API do
   defp retry_response?(_response), do: false
 
   @spec handle_response(http_success | http_failure) :: {:ok, map} | {:error, Stripe.Error.t()}
-  defp handle_response({:ok, status, headers, body}) when status >= 200 and status <= 299 do
-    decoded_body =
-      body
-      |> decompress_body(headers)
-      |> json_library().decode!()
-
-    {:ok, decoded_body}
+  defp handle_response({:ok, status, _headers, body}) when status >= 200 and status <= 299 do
+    {:ok, body}
   end
 
   defp handle_response({:ok, status, headers, body}) when status >= 300 and status <= 599 do
@@ -505,14 +469,14 @@ defmodule Stripe.API do
       end)
 
     error =
-      case json_library().decode(body) do
-        {:ok, %{"error_description" => _} = api_error} ->
+      case body do
+        %{"error_description" => _} = api_error ->
           Error.from_stripe_error(status, api_error, request_id)
 
-        {:ok, %{"error" => api_error}} ->
+        %{"error" => api_error} ->
           Error.from_stripe_error(status, api_error, request_id)
 
-        {:error, _} ->
+        _ ->
           # e.g. if the body is empty
           Error.from_stripe_error(status, nil, request_id)
       end
@@ -523,26 +487,6 @@ defmodule Stripe.API do
   defp handle_response({:error, reason}) do
     error = Error.from_http_client_error(reason)
     {:error, error}
-  end
-
-  defp decompress_body(body, headers) do
-    case header_value(headers, "Content-Encoding") do
-      "gzip" -> :zlib.gunzip(body)
-      "deflate" -> :zlib.unzip(body)
-      _ -> body
-    end
-  end
-
-  defp header_value(headers, expected_header) do
-    expected_header = String.downcase(expected_header)
-
-    Enum.find_value(headers, fn
-      {header, value} when is_binary(header) ->
-        if String.downcase(header) == expected_header, do: value
-
-      _header ->
-        nil
-    end)
   end
 
   defp prepend_url("", url), do: url
