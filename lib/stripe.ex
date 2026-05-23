@@ -44,8 +44,8 @@ defmodule Stripe do
 
   Stripity Stripe is set up to use an HTTP connection pool by default. This
   means that it will reuse already opened HTTP connections in order to
-  minimize the overhead of establishing connections. The pool is directly
-  supervised by Stripity Stripe. Two configuration options are
+  minimize the overhead of establishing connections. The Finch pool used by Req
+  is directly supervised by Stripity Stripe. Two configuration options are
   available to tune how this pool works: `:timeout` and `:max_connections`.
 
   `:timeout` is the amount of time that a connection will be allowed
@@ -62,8 +62,8 @@ defmodule Stripe do
         timeout: 5_000,
         max_connections: 10
 
-  If you prefer, you can also turn pooling off completely using
-  the `:use_connection_pool` setting:
+  If you prefer not to supervise a dedicated Finch pool, you can use
+  Req's default pool with the `:use_connection_pool` setting:
 
       config :stripity_stripe, use_connection_pool: false
 

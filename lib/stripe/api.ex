@@ -34,7 +34,7 @@ defmodule Stripe.API do
 
   def supervisor_children do
     if use_pool?() do
-      [:hackney_pool.child_spec(@pool_name, get_pool_options())]
+      [{Finch, name: @pool_name, pools: %{default: get_pool_options()}}]
     else
       []
     end
@@ -42,7 +42,12 @@ defmodule Stripe.API do
 
   @spec get_pool_options() :: Keyword.t()
   defp get_pool_options do
-    Config.resolve(:pool_options)
+    pool_options = Config.resolve(:pool_options)
+
+    [
+      size: Keyword.get(pool_options, :max_connections, 10),
+      pool_max_idle_time: Keyword.get(pool_options, :timeout, 5_000)
+    ]
   end
 
   @spec get_base_url() :: String.t()
@@ -73,7 +78,7 @@ defmodule Stripe.API do
 
   @spec http_module() :: module
   defp http_module do
-    Config.resolve(:http_module, :hackney)
+    Config.resolve(:http_module, Stripe.ReqClient)
   end
 
   @spec retry_config() :: Keyword.t()
@@ -192,13 +197,13 @@ defmodule Stripe.API do
 
   @spec add_default_options(list) :: list
   defp add_default_options(opts) do
-    [:with_body | opts]
+    opts
   end
 
   @spec add_pool_option(list) :: list
   defp add_pool_option(opts) do
     if use_pool?() do
-      [{:pool, @pool_name} | opts]
+      [{:finch, @pool_name} | opts]
     else
       opts
     end
@@ -206,10 +211,9 @@ defmodule Stripe.API do
 
   @spec add_options_from_config(list) :: list
   defp add_options_from_config(opts) do
-    if is_list(Stripe.Config.resolve(:hackney_opts)) do
-      opts ++ Stripe.Config.resolve(:hackney_opts)
-    else
-      opts
+    case Stripe.Config.resolve(:req_opts) do
+      req_opts when is_list(req_opts) -> opts ++ req_opts
+      _ -> opts
     end
   end
 
@@ -482,8 +486,11 @@ defmodule Stripe.API do
   defp handle_response({:ok, status, headers, body}) when status >= 300 and status <= 599 do
     request_id =
       Enum.find_value(headers, fn
-        {"Request-Id", request_id} -> request_id
-        _header -> nil
+        {header, request_id} when is_binary(header) ->
+          if String.downcase(header) == "request-id", do: request_id
+
+        _header ->
+          nil
       end)
 
     error =
@@ -503,18 +510,28 @@ defmodule Stripe.API do
   end
 
   defp handle_response({:error, reason}) do
-    error = Error.from_hackney_error(reason)
+    error = Error.from_http_client_error(reason)
     {:error, error}
   end
 
   defp decompress_body(body, headers) do
-    headers_dict = :hackney_headers.new(headers)
-
-    case :hackney_headers.get_value("Content-Encoding", headers_dict) do
+    case header_value(headers, "Content-Encoding") do
       "gzip" -> :zlib.gunzip(body)
       "deflate" -> :zlib.unzip(body)
       _ -> body
     end
+  end
+
+  defp header_value(headers, expected_header) do
+    expected_header = String.downcase(expected_header)
+
+    Enum.find_value(headers, fn
+      {header, value} when is_binary(header) ->
+        if String.downcase(header) == expected_header, do: value
+
+      _header ->
+        nil
+    end)
   end
 
   defp prepend_url("", url), do: url
