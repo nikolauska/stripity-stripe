@@ -64,9 +64,9 @@ defmodule Stripe.Mixfile do
   defp deps do
     [
       {:req, "~> 0.5"},
-      {:jason, "~> 1.1"},
       {:telemetry, "~> 1.1"},
       {:uri_query, "~> 0.2.0"},
+      {:jason, "~> 1.1", optional: true},
       {:plug, "~> 1.14", optional: true},
       # Non-production dependencies
       {:inch_ex, ">= 0.0.0", only: [:dev, :test]},

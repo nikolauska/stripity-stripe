@@ -25,11 +25,22 @@ defmodule Stripe.API do
   @doc """
   In config.exs your implicit or explicit configuration is:
     config :stripity_stripe,
-      json_library: Poison # defaults to Jason but can be configured to Poison
+      json_library: Poison # defaults to Elixir's JSON module when available
   """
   @spec json_library() :: module
   def json_library do
-    Config.resolve(:json_library, Jason)
+    case Application.fetch_env(:stripity_stripe, :json_library) do
+      {:ok, _} -> Config.resolve(:json_library)
+      :error -> default_json_library()
+    end
+  end
+
+  defp default_json_library do
+    cond do
+      Code.ensure_loaded?(JSON) -> JSON
+      Code.ensure_loaded?(Jason) -> Jason
+      true -> raise "stripity_stripe requires Elixir's JSON module or a configured :json_library"
+    end
   end
 
   def supervisor_children do

@@ -6,6 +6,14 @@ defmodule Stripe.APITest do
     send(self(), {:telemetry_event, name, measurements, metadata})
   end
 
+  defp restore_json_library({:ok, json_library}) do
+    Application.put_env(:stripity_stripe, :json_library, json_library)
+  end
+
+  defp restore_json_library(:error) do
+    Application.delete_env(:stripity_stripe, :json_library)
+  end
+
   test "works with non existent responses without issue" do
     {:error, %Stripe.Error{extra: %{http_status: 404}}} =
       Stripe.API.request(%{}, :get, "/", %{}, [])
@@ -21,6 +29,28 @@ defmodule Stripe.APITest do
     expect(Stripe.APIMock, :oauth_request, fn method, _endpoint, _body -> method end)
 
     assert Stripe.APIMock.oauth_request(:post, "www", %{body: "body"}) == :post
+  end
+
+  describe "json_library/0" do
+    test "prefers Elixir's JSON module when it is available" do
+      original_json_library = Application.fetch_env(:stripity_stripe, :json_library)
+      on_exit(fn -> restore_json_library(original_json_library) end)
+
+      Application.delete_env(:stripity_stripe, :json_library)
+
+      expected_json_library = if Code.ensure_loaded?(JSON), do: JSON, else: Jason
+
+      assert Stripe.API.json_library() == expected_json_library
+    end
+
+    test "can be configured" do
+      original_json_library = Application.fetch_env(:stripity_stripe, :json_library)
+      on_exit(fn -> restore_json_library(original_json_library) end)
+
+      Application.put_env(:stripity_stripe, :json_library, CustomJSONLibrary)
+
+      assert Stripe.API.json_library() == CustomJSONLibrary
+    end
   end
 
   describe "generate_idempotency_key" do
@@ -148,7 +178,7 @@ defmodule Stripe.APITest do
       def request(_, _, headers, _, _) do
         kv_headers = Enum.reduce(headers, %{}, fn {k, v}, acc -> Map.put(acc, k, v) end)
 
-        {:ok, 200, headers, Jason.encode!(kv_headers)}
+        {:ok, 200, headers, Stripe.API.json_library().encode!(kv_headers)}
       end
     end
 
@@ -179,7 +209,7 @@ defmodule Stripe.APITest do
             end
           end)
 
-        {:ok, 200, headers, Jason.encode!(kv_opts)}
+        {:ok, 200, headers, Stripe.API.json_library().encode!(kv_opts)}
       end
 
       defp normalize_option(value) when is_list(value) do
