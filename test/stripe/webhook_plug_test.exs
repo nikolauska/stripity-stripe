@@ -1,6 +1,6 @@
 defmodule Stripe.WebhookPlugTest do
   use ExUnit.Case
-  use Plug.Test
+  import Plug.Test
   alias Stripe.WebhookPlug
 
   @valid_payload ~S({"object": "event", "type": "customer.updated"})
@@ -72,7 +72,7 @@ defmodule Stripe.WebhookPlugTest do
       conn =
         :post
         |> conn("/webhook/stripe", @valid_payload)
-        |> put_req_header("stripe-signature", signature_header)
+        |> Plug.Conn.put_req_header("stripe-signature", signature_header)
 
       {:ok, %{conn: conn}}
     end
@@ -86,7 +86,7 @@ defmodule Stripe.WebhookPlugTest do
     test "rejects invalid signature", %{conn: conn} do
       signature_header = generate_signature_header("random")
 
-      conn = put_req_header(conn, "stripe-signature", signature_header)
+      conn = Plug.Conn.put_req_header(conn, "stripe-signature", signature_header)
 
       result = WebhookPlug.call(conn, @opts)
       assert result.state == :sent
